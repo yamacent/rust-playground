@@ -11,8 +11,11 @@ pub enum Keyword {
 pub enum TokenValue {
     Ident(String),
     Keyword(Keyword),
+    Number(i32),
+    String(String),
     Asterisk,
     Period,
+    Comma,
 }
 
 #[derive(Debug, PartialEq)]
@@ -39,6 +42,14 @@ impl Tokenizer {
             let (i, c) = iter.peek().unwrap().clone();
             match c {
                 ' ' => self.skip_whitespaces(&mut iter),
+                '0'..='9' => {
+                    let pos = i;
+                    let n = self.take_number(&mut iter);
+                    r.push(Token {
+                        pos,
+                        value: TokenValue::Number(n),
+                    })
+                }
                 'A'..='Z' | 'a'..='z' | '_' => {
                     let pos = i;
                     let w = self.take_word(&mut iter);
@@ -50,16 +61,25 @@ impl Tokenizer {
                         },
                     });
                 }
-                '*' | '.' => {
+                '*' | '.' | ',' => {
                     r.push(Token {
                         pos: i,
                         value: match c {
                             '*' => TokenValue::Asterisk,
                             '.' => TokenValue::Period,
+                            ',' => TokenValue::Comma,
                             _ => return Err(String::from("")),
                         },
                     });
                     iter.next();
+                }
+                '"' => {
+                    let pos = i;
+                    let s = self.take_string(&mut iter);
+                    r.push(Token {
+                        pos,
+                        value: TokenValue::String(s),
+                    })
                 }
                 _ => return Err(format!("{} is not supported", c)),
             }
@@ -90,7 +110,45 @@ impl Tokenizer {
                         break;
                     }
                 }
-                _ => break,
+                None => break,
+            }
+        }
+        r
+    }
+
+    fn take_number(&self, iter: &mut Peekable<Enumerate<Chars>>) -> i32 {
+        let mut r = String::new();
+        loop {
+            let val = iter.peek();
+            match val {
+                Some((_, c)) => match c {
+                    '0'..='9' => {
+                        r.push(*c);
+                        iter.next();
+                    }
+                    _ => break,
+                },
+                None => break,
+            }
+        }
+        r.parse().unwrap()
+    }
+
+    fn take_string(&self, iter: &mut Peekable<Enumerate<Chars>>) -> String {
+        let mut r = String::new();
+        iter.next(); // drop first "
+        loop {
+            let val = iter.peek();
+            match val {
+                Some((_, '"')) => {
+                    iter.next();
+                    break;
+                }
+                Some((_, c)) => {
+                    r.push(*c);
+                    iter.next();
+                }
+                None => panic!("unterminated string literal"),
             }
         }
         r
@@ -159,6 +217,28 @@ mod test {
                 (20, TokenValue::Ident(String::from("foo"))),
                 (25, TokenValue::Period),
                 (29, TokenValue::Ident(String::from("bar"))),
+            ],
+        );
+    }
+
+    #[test]
+    fn test_literals() {
+        assert_tokens(
+            "select 123, \"this is a string literal\" from a.b.c",
+            &[
+                (0, TokenValue::Keyword(Keyword::SELECT)),
+                (7, TokenValue::Number(123)),
+                (10, TokenValue::Comma),
+                (
+                    12,
+                    TokenValue::String(String::from("this is a string literal")),
+                ),
+                (39, TokenValue::Keyword(Keyword::FROM)),
+                (44, TokenValue::Ident(String::from("a"))),
+                (45, TokenValue::Period),
+                (46, TokenValue::Ident(String::from("b"))),
+                (47, TokenValue::Period),
+                (48, TokenValue::Ident(String::from("c"))),
             ],
         );
     }
