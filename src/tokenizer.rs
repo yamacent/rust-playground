@@ -18,7 +18,7 @@ impl Tokenizer {
         }
     }
 
-    pub fn tokenize(&self) -> Vec<Token> {
+    pub fn tokenize(&self) -> Result<Vec<Token>, String> {
         let mut iter = self.str.chars().enumerate().peekable();
         let mut r = vec![];
         while iter.peek().is_some() {
@@ -30,16 +30,17 @@ impl Tokenizer {
                     let w = self.take_word(&mut iter);
                     r.push(Token { pos, value: w });
                 }
-                _ => {
+                '*' | '.' => {
                     r.push(Token {
                         pos: i,
                         value: String::from(c.to_string()),
                     });
                     iter.next();
                 }
+                _ => return Err(format!("{} is not supported", c)),
             }
         }
-        r
+        Ok(r)
     }
 
     fn skip_whitespaces(&self, iter: &mut Peekable<Enumerate<Chars>>) {
@@ -94,7 +95,10 @@ mod test {
     }
 
     fn assert_tokens(code: &str, expect: &[(usize, &str)]) {
-        assert_eq!(make_tokens(expect), Tokenizer::new(code).tokenize());
+        assert_eq!(
+            make_tokens(expect),
+            Tokenizer::new(code).tokenize().unwrap()
+        );
     }
 
     #[test]
