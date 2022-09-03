@@ -1,10 +1,24 @@
 use std::iter::{Enumerate, Peekable};
 use std::str::Chars;
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum Keyword {
+    SELECT,
+    FROM,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum TokenValue {
+    Ident(String),
+    Keyword(Keyword),
+    Asterisk,
+    Period,
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Token {
     pub pos: usize,
-    pub value: String,
+    pub value: TokenValue,
 }
 
 pub struct Tokenizer {
@@ -28,12 +42,22 @@ impl Tokenizer {
                 'A'..='Z' | 'a'..='z' | '_' => {
                     let pos = i;
                     let w = self.take_word(&mut iter);
-                    r.push(Token { pos, value: w });
+                    r.push(Token {
+                        pos,
+                        value: match is_keyword(&w[..]) {
+                            Some(kw) => TokenValue::Keyword(kw),
+                            None => TokenValue::Ident(w),
+                        },
+                    });
                 }
                 '*' | '.' => {
                     r.push(Token {
                         pos: i,
-                        value: String::from(c.to_string()),
+                        value: match c {
+                            '*' => TokenValue::Asterisk,
+                            '.' => TokenValue::Period,
+                            _ => return Err(String::from("")),
+                        },
                     });
                     iter.next();
                 }
@@ -80,21 +104,29 @@ fn is_idnt(c: char) -> bool {
     }
 }
 
+fn is_keyword(s: &str) -> Option<Keyword> {
+    match &s.to_lowercase()[..] {
+        "select" => Some(Keyword::SELECT),
+        "from" => Some(Keyword::FROM),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
 
-    fn make_tokens(items: &[(usize, &str)]) -> Vec<Token> {
+    fn make_tokens(items: &[(usize, TokenValue)]) -> Vec<Token> {
         items
             .iter()
             .map(|(pos, value)| Token {
                 pos: *pos,
-                value: String::from(*value),
+                value: value.clone(),
             })
             .collect()
     }
 
-    fn assert_tokens(code: &str, expect: &[(usize, &str)]) {
+    fn assert_tokens(code: &str, expect: &[(usize, TokenValue)]) {
         assert_eq!(
             make_tokens(expect),
             Tokenizer::new(code).tokenize().unwrap()
@@ -106,12 +138,12 @@ mod test {
         assert_tokens(
             "select * from foo.bar",
             &[
-                (0, "select"),
-                (7, "*"),
-                (9, "from"),
-                (14, "foo"),
-                (17, "."),
-                (18, "bar"),
+                (0, TokenValue::Keyword(Keyword::SELECT)),
+                (7, TokenValue::Asterisk),
+                (9, TokenValue::Keyword(Keyword::FROM)),
+                (14, TokenValue::Ident(String::from("foo"))),
+                (17, TokenValue::Period),
+                (18, TokenValue::Ident(String::from("bar"))),
             ],
         );
     }
@@ -121,12 +153,12 @@ mod test {
         assert_tokens(
             "  select  *  from   foo  .   bar   ",
             &[
-                (2, "select"),
-                (10, "*"),
-                (13, "from"),
-                (20, "foo"),
-                (25, "."),
-                (29, "bar"),
+                (2, TokenValue::Keyword(Keyword::SELECT)),
+                (10, TokenValue::Asterisk),
+                (13, TokenValue::Keyword(Keyword::FROM)),
+                (20, TokenValue::Ident(String::from("foo"))),
+                (25, TokenValue::Period),
+                (29, TokenValue::Ident(String::from("bar"))),
             ],
         );
     }
