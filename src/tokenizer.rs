@@ -16,6 +16,8 @@ pub enum TokenValue {
     Asterisk,
     Period,
     Comma,
+    LParen,
+    RParen,
 }
 
 #[derive(Debug, PartialEq)]
@@ -61,13 +63,15 @@ impl Tokenizer {
                         },
                     });
                 }
-                '*' | '.' | ',' => {
+                '*' | '.' | ',' | '(' | ')' => {
                     r.push(Token {
                         pos: i,
                         value: match c {
                             '*' => TokenValue::Asterisk,
                             '.' => TokenValue::Period,
                             ',' => TokenValue::Comma,
+                            '(' => TokenValue::LParen,
+                            ')' => TokenValue::RParen,
                             _ => return Err(String::from("")),
                         },
                     });
@@ -239,6 +243,28 @@ mod test {
                 (46, TokenValue::Ident(String::from("b"))),
                 (47, TokenValue::Period),
                 (48, TokenValue::Ident(String::from("c"))),
+            ],
+        );
+    }
+
+    #[test]
+    fn test_subquery() {
+        assert_tokens(
+            "select * from (select apple, banana, peach from fruits)",
+            &[
+                (0, TokenValue::Keyword(Keyword::SELECT)),
+                (7, TokenValue::Asterisk),
+                (9, TokenValue::Keyword(Keyword::FROM)),
+                (14, TokenValue::LParen),
+                (15, TokenValue::Keyword(Keyword::SELECT)),
+                (22, TokenValue::Ident(String::from("apple"))),
+                (27, TokenValue::Comma),
+                (29, TokenValue::Ident(String::from("banana"))),
+                (35, TokenValue::Comma),
+                (37, TokenValue::Ident(String::from("peach"))),
+                (43, TokenValue::Keyword(Keyword::FROM)),
+                (48, TokenValue::Ident(String::from("fruits"))),
+                (54, TokenValue::RParen),
             ],
         );
     }
